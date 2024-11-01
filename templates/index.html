@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Music Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #ffffff; /* White background */
+            color: #000;
+        }
+        #drop-area {
+            border: 2px dashed #ccc;
+            padding: 50px;
+            width: 300px;
+            text-align: center;
+            margin-top: 50px;
+            color: #666;
+        }
+        #canvas {
+            margin-top: 20px;
+            background-color: #ffffff; /* Match the body background */
+        }
+        audio {
+            display: none; /* Hide the audio element */
+        }
+    </style>
+</head>
+<body>
+    <h1>Music Visualizer</h1>
+    <h2 id="file-name">No file playing</h2> <!-- File name heading -->
+    <div id="drop-area">
+        <p>Drag and drop an MP3 file here</p>
+    </div>
+    <canvas id="canvas" width="800" height="400"></canvas>
+    <audio id="audio" controls></audio> <!-- Hidden audio element for Web Audio API -->
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('audio');
+        const fileNameDisplay = document.getElementById('file-name'); // Reference to file name display
+        const socket = io();
+
+        let audioContext, analyser, dataArray;
+
+        // Drag and drop event listeners
+        dropArea.addEventListener('dragover', (event) => { event.preventDefault(); });
+        dropArea.addEventListener('drop', handleDrop);
+
+        async function handleDrop(event) {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            const fileURL = URL.createObjectURL(file);
+
+            audio.src = fileURL;
+            await audio.play();
+
+            // Display the name of the file
+            fileNameDisplay.textContent = `Playing: ${file.name}`;
+
+            // Initialize Web Audio API after audio starts playing
+            if (!audioContext) {
+                initAudioContext();
+            }
+        }
+
+        function initAudioContext() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaElementSource(audio);
+            analyser = audioContext.createAnalyser();
+
+            analyser.fftSize = 256; // Size of FFT window for frequency resolution
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+
+            // Start the animation loop
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Get frequency data from the analyser
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = (canvas.width / dataArray.length) * 2.5;
+            let x = 0;
+
+            for (let i = 0; i < dataArray.length; i++) {
+                const barHeight = dataArray[i];
+                ctx.fillStyle = `rgb(0, 0, 0)`;  // Set bars to black
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+                x += barWidth + 1; // Add 1 for spacing
+            }
+        }
+    </script>
+</body>
+</html>
